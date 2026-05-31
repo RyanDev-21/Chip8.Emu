@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/sekiro/MyStuff/Chip8/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
