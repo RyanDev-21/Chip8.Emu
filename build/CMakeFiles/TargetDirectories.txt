@@ -1,0 +1,3 @@
+/home/sekiro/MyStuff/Chip8/build/CMakeFiles/MySDLGame.dir
+/home/sekiro/MyStuff/Chip8/build/CMakeFiles/edit_cache.dir
+/home/sekiro/MyStuff/Chip8/build/CMakeFiles/rebuild_cache.dir
