@@ -4,6 +4,9 @@
 #include <fstream>
 #include <iosfwd>
 #include <random>
+// Screen width and height
+inline constexpr unsigned int VIDEO_WIDTH = 64;
+inline constexpr unsigned int VIDEO_HEIGHT = 32;
 
 // Declartion for custom type
 // byte == 8 bit
@@ -27,7 +30,7 @@ class Chip8 {
     word _programCounter{};
     const word _startAddress = 0x200;
     std::default_random_engine randGen;
-    std::uniform_int_distribution<uint8_t> randByte;
+    std::uniform_int_distribution<byte> randByte;
 
   public:
     Chip8();
@@ -53,7 +56,7 @@ class Chip8 {
     void OP_9xy0();
     void OP_Annn();
     void OP_Bnnn();
-    void OP_CXnn();
+    void OP_Cxnn();
     void OP_Dxyn();
 };
 // This is the main constructor to create the Chip8 CPU
@@ -65,8 +68,9 @@ Chip8::Chip8() : randGen(std::chrono::system_clock::now().time_since_epoch().cou
     word pc = _startAddress;
     const unsigned int FONTSET_SIZE = 80;
     const unsigned int FONTSET_SIZE_ADDRESS = 0x50;
-    randByte = std::uniform_int_distribution<uint8_t>(0, 255U);
-    uint8_t fontset[FONTSET_SIZE] = {
+    randByte = std::uniform_int_distribution<byte>(0, 255U);
+    // this is nothing but a dot to form letters
+    byte fontset[FONTSET_SIZE] = {
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
         0x20, 0x60, 0x20, 0x20, 0x70, // 1
         0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
@@ -120,13 +124,13 @@ void Chip8::OP_00EE() {
 
 // Jump to Address Location:1NNN
 void Chip8::OP_1nnn() {
-    uint16_t addr = opcode & 0x0FFF;
+    word addr = opcode & 0x0FFF;
     _programCounter = addr;
 }
 
 // Call Address :2NNN
 void Chip8::OP_2nnn() {
-    uint16_t addr = opcode & 0x0FFF;
+    word addr = opcode & 0x0FFF;
     _stack[_stackPointer] = _programCounter;
     ++_stackPointer;
     _programCounter = addr;
@@ -135,8 +139,8 @@ void Chip8::OP_2nnn() {
 // Skip next instruction if equal:3xkk
 // Vx == kk : skip
 void Chip8::OP_3xnn() {
-    uint8_t kk = opcode & 0x00FFu;
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
+    byte kk = opcode & 0x00FFu;
+    byte Vx = (opcode & 0x0F00u) >> 8u;
     if (_registers[Vx] == kk) {
         _programCounter += 2;
     }
@@ -165,57 +169,58 @@ void Chip8::OP_5xy0() {
 // Set instruction to vx: 6xnn
 // vx = nn
 void Chip8::OP_6xnn() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t inst = (opcode & 0x00FFu);
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte inst = (opcode & 0x00FFu);
     _registers[Vx] = inst;
 }
 
 // Add the byte to the register:7xnn
 // vx +=nn
 void Chip8::OP_7xnn() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t byte = (opcode & 0x00FFu);
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte byte = (opcode & 0x00FFu);
     _registers[Vx] += byte;
 }
 
 // Assign Vy to Vx : 8xy0
 // Vx = Vy
 void Chip8::OP_8xy0() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
     _registers[Vx] = _registers[Vy];
 }
 
 // Assign the Vy | Vx into Vx : 8xy1
 // Vx = Vx | Vy
 void Chip8::OP_8xy1() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
     _registers[Vx] |= _registers[Vy];
 }
 
 // Assign the Vy & Vx into Vx : 8xy2
 // Vx = Vx & Vy
 void Chip8::OP_8xy2() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
     _registers[Vx] &= _registers[Vy];
 }
 
 // Assign the Vy ^(xor) Vx into Vx : 8xy3
 // Vx = Vx ^ Vy
 void Chip8::OP_8xy3() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
     _registers[Vx] ^= _registers[Vy];
 }
 
 // Assign the Vx + Vy into Vx :8xy4
 // Vx = Vx + Vy
+// when overflow set Vf = 1 : 0
 void Chip8::OP_8xy4() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t Vy = (opcode & 0x00F0u) >> 4u;
-    uint8_t sum = _registers[Vx] + _registers[Vy];
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
+    byte sum = _registers[Vx] + _registers[Vy];
     if (sum > 255u) {
         _registers[0xF] = 1;
     } else {
@@ -226,13 +231,105 @@ void Chip8::OP_8xy4() {
 
 // Assign the Vx - Vy into Vx:8xy5
 // Vx = Vx - Vy
+// when underflow set Vf = 0 : 1
 void Chip8::OP_8xy5() {
-    uint8_t Vx = (opcode & 0x0F00u) >> 8u;
-    uint8_t Vy = (opcode & 0x00F0u) >> 4u;
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
     if (_registers[Vx] > _registers[Vy]) {
         _registers[0xF] = 1;
     } else {
         _registers[0xF] = 0;
     }
     _registers[Vx] -= _registers[Vy];
+}
+
+// Store the least significant bit in Vf and then shift the vx by 1 right: 8xy6
+void Chip8::OP_8xy6() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    _registers[0xF] = _registers[Vx] & 0x1u; // this takes out the last bit
+    _registers[Vx] >>= 1u;
+}
+
+// Assign the Vy - Vx into Vx :8xy7
+// Vx = Vy - Vx
+// when there is underflow Vf =  0: 1
+void Chip8::OP_8xy7() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
+    if (_registers[Vy] >= _registers[Vx]) {
+        _registers[0xF] = 0;
+    } else {
+        _registers[0xF] = 1;
+    }
+    _registers[Vx] = _registers[Vy] - _registers[Vx];
+}
+
+// Store the most significant bit in Vf and then shift the Vx by 1 left :8xyE
+void Chip8::OP_8xyE() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    _registers[0xF] =
+        (_registers[Vx] & 0x80u) >> 7u; // take out the last bit and then shift to the start
+    _registers[Vx] <<= 1u;
+}
+
+// Skip the next instructions if Vx != Vy:9xy0
+void Chip8::OP_9xy0() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
+    if (_registers[Vx] == _registers[Vy]) {
+        _programCounter += 2;
+    };
+};
+
+// Set the addressPointer to given addr :Annn
+void Chip8::OP_Annn() {
+    word addr = opcode & 0x0FFFu;
+    _addressI = addr;
+}
+
+// Set the program counter to V0 + nnn : Bnnn
+void Chip8::OP_Bnnn() {
+    word addr = opcode & 0x0FFFu;
+    _programCounter = _registers[0x0] + addr;
+}
+
+// Set the Vx = rang() & NNN :Cxnn
+void Chip8::OP_Cxnn() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    word addr = opcode & 0x00FFu;
+    _registers[Vx] = randByte(randGen) & addr;
+}
+
+// Draw the corrdinate of Vx, Vy with height n : Dxyn
+void Chip8::OP_Dxyn() {
+
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte Vy = (opcode & 0x00F0u) >> 4u;
+    byte height = (opcode & 0x000Fu);
+
+    // has to modulo the width and heigth to wrap exceeding width and height
+    byte xPos = _registers[Vx] % VIDEO_WIDTH;
+    byte yPos = _registers[Vy] % VIDEO_HEIGHT;
+
+    _registers[0xF] = 0; // no collision
+    for (int row = 0; row < height; ++row) {
+        // take out the each byte from the memory
+        byte spriteByte = _memory[_addressI + row];
+        // standard sprite width is 8
+        for (int col = 0; col < 8; ++col) {
+            // take out the bit of the sprite byte(pixel)
+            byte spritePixel = spriteByte & (0x80u >> col);
+            // calc x and y pos
+            byte currentY = (yPos + row) % VIDEO_HEIGHT;
+            byte curretnX = (xPos + col) % VIDEO_WIDTH;
+            // calc screen pixel
+            uint32_t *screenPixel = &screenData[currentY * VIDEO_WIDTH + curretnX];
+            if (spritePixel) {
+                if (*screenPixel == 0xFFFFFFFF) { // collision detect _registers[0xF] = 1;
+                }
+                // xor if on ?? off : on;
+                *screenPixel ^= 0xFFFFFFFF;
+            }
+        }
+    }
 }
