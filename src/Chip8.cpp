@@ -58,6 +58,16 @@ class Chip8 {
     void OP_Bnnn();
     void OP_Cxnn();
     void OP_Dxyn();
+    void OP_Ex9E();
+    void OP_ExA1();
+    void OP_Fx07();
+    void OP_Fx0A();
+    void OP_Fx15();
+    void OP_Fx18();
+    void OP_Fx1E();
+    void OP_Fx29();
+    void OP_Fx33();
+    void OP_Fx55();
 };
 // This is the main constructor to create the Chip8 CPU
 // Initialize the fontset within the desired range and then
@@ -67,7 +77,7 @@ class Chip8 {
 Chip8::Chip8() : randGen(std::chrono::system_clock::now().time_since_epoch().count()) {
     word pc = _startAddress;
     const unsigned int FONTSET_SIZE = 80;
-    const unsigned int FONTSET_SIZE_ADDRESS = 0x50;
+    const unsigned int FONTSET_START_ADDRESS = 0x50;
     randByte = std::uniform_int_distribution<byte>(0, 255U);
     // this is nothing but a dot to form letters
     byte fontset[FONTSET_SIZE] = {
@@ -90,7 +100,7 @@ Chip8::Chip8() : randGen(std::chrono::system_clock::now().time_since_epoch().cou
     };
 
     for (int i = 0; i < FONTSET_SIZE; i++) {
-        _memory[FONTSET_SIZE_ADDRESS + 1] = fontset[i];
+        _memory[FONTSET_START_ADDRESS + 1] = fontset[i];
     }
 };
 
@@ -331,5 +341,86 @@ void Chip8::OP_Dxyn() {
                 *screenPixel ^= 0xFFFFFFFF;
             }
         }
+    }
+}
+
+// Skip to next instructions if key with Vx is pressed :Ex9E
+void Chip8::OP_Ex9E() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte key = _registers[Vx];
+    if (key < 0xF && keypad[key]) {
+        _programCounter += 2;
+    }
+};
+
+// SKip to next instructions if key with Vx is not pressed :ExA1
+void Chip8::OP_ExA1() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte key = _registers[Vx];
+
+    if (key < 0xF && !keypad[key]) {
+        _programCounter += 2;
+    }
+}
+
+// Set the Vx value to delay timer: Fx07
+void Chip8::OP_Fx07() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    _registers[Vx] = delayTimer;
+}
+
+// Awaits as long as the key is not pressed: Fx0A
+void Chip8::OP_Fx0A() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    for (int key = 0; key < 16; ++key) {
+        if (keypad[key]) {
+            _registers[Vx] = key;
+            return;
+        }
+    }
+    _programCounter -= 2;
+}
+// Set the delaytime to Vx :Fx15
+void Chip8::OP_Fx15() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    delayTimer = _registers[Vx];
+}
+
+// Set the soundTimer to Vx: Fx18
+void Chip8::OP_Fx18() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    soundTimer = _registers[Vx];
+}
+
+// Plus the memory pointer with Vx value: Fx1E
+void Chip8::OP_Fx1E() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    _addressI += _registers[Vx];
+}
+
+// Set the fontset_start_addr to the Vx digit :Fx29
+void Chip8::OP_Fx29() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte digit = _registers[Vx];
+    // the fontset_start_addr = 0x50;
+    _addressI = 0x50 + (5 * digit);
+}
+
+// Store Vx value's the hundred-digit at I, and 10th-digit at I+1 and single-digit t I+2:Fx33
+void Chip8::OP_Fx33() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    byte value = _registers[Vx];
+    _memory[_addressI + 2] = value % 10;
+    value /= 10;
+    _memory[_addressI + 1] = value % 10;
+    value /= 10;
+    _memory[_addressI] = value % 10;
+};
+
+// Store the V0 to Vx in memory :Fx55
+void Chip8::OP_Fx55() {
+    byte Vx = (opcode & 0x0F00u) >> 8u;
+    for (byte i = 0; i <= _registers[Vx]; ++i) {
+        _memory[_addressI + i] = _registers[i];
     }
 }
