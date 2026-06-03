@@ -6,7 +6,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(SDL2 REQUIRED CONFIG)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} 
+    src/main.cpp
+    src/core/Chip8.cpp
+    src/Platform/Platform.cpp
+    
+)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)
 
 if(WIN32)

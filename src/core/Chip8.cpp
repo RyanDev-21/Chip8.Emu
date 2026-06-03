@@ -1,101 +1,18 @@
+#include "Chip8.h"
 #include <chrono>
-#include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iosfwd>
-#include <random>
-// Screen width and height
-inline constexpr unsigned int VIDEO_WIDTH = 64;
-inline constexpr unsigned int VIDEO_HEIGHT = 32;
 
-// Declartion for custom type
-// byte == 8 bit
-// word == 16 bit
-typedef uint8_t byte;
-typedef uint16_t word;
-
-// Chip8 internal
-class Chip8 {
-  private:
-    byte _registers[16]{};
-    byte _memory[0xFFF]{};
-    byte _stack[16]{};
-    byte _stackPointer{};
-    byte delayTimer{};
-    byte soundTimer{};
-    byte keypad[16]{};
-    uint32_t screenData[32 * 64]{}; // Make this  a 32bit for sdl
-    word opcode{};
-    word _addressI{};
-    word _programCounter{};
-    const word _startAddress = 0x200;
-    std::default_random_engine randGen;
-    std::uniform_int_distribution<byte> randByte;
-
-    // Alias for  member pointer function
-    typedef void (Chip8::*Chip8Func)();
-    // the Chip8(1970) has only up to E
-    // e.g::::: table[0xE+1];
-    // just to prevent  crashing for some bug instructons code and 1990 super chip8 added
-    // instructions
-    Chip8Func table[0xF + 1];
-    Chip8Func table0[0xF + 1];
-    Chip8Func table8[0xF + 1];
-    Chip8Func tableE[0xF + 1];
-    Chip8Func tableF[0x65 + 1];
-
-    void Table0() { ((*this).*(table0[opcode & 0x000Fu]))(); }
-    void Table8() { ((*this).*(table8[opcode & 0x000Fu]))(); }
-    void TableE() { ((*this).*(table8[opcode & 0x000Fu]))(); }
-    void TableF() { ((*this).*(tableF[opcode & 0x00FFu]))(); } // take the least last two hex
-    void OP_NULL() {};
-
-  public:
-    Chip8();
-    void Cycle();
-    void LoadRom(char const *filename);
-    void OP_00E0();
-    void OP_00EE();
-    void OP_1nnn();
-    void OP_2nnn();
-    void OP_3xnn();
-    void OP_4xnn();
-    void OP_5xy0();
-    void OP_6xnn();
-    void OP_7xnn();
-    void OP_8xy0();
-    void OP_8xy1();
-    void OP_8xy2();
-    void OP_8xy3();
-    void OP_8xy4();
-    void OP_8xy5();
-    void OP_8xy6();
-    void OP_8xy7();
-    void OP_8xyE();
-    void OP_9xy0();
-    void OP_Annn();
-    void OP_Bnnn();
-    void OP_Cxnn();
-    void OP_Dxyn();
-    void OP_Ex9E();
-    void OP_ExA1();
-    void OP_Fx07();
-    void OP_Fx0A();
-    void OP_Fx15();
-    void OP_Fx18();
-    void OP_Fx1E();
-    void OP_Fx29();
-    void OP_Fx33();
-    void OP_Fx55();
-    void OP_Fx65();
-};
 // This is the main constructor to create the Chip8 CPU
 // Initialize the fontset within the desired range and then
 // Since the Chip8 has random number generate instructions
 // I have to mimic that using the c++ standard library and used it as
 // Initialize list when the function start
-Chip8::Chip8() : randGen(std::chrono::system_clock::now().time_since_epoch().count()) {
-    word pc = _startAddress;
+Chip8::Chip8()
+    : delayTimer(0), soundTimer(0), _stackPointer(0), opcode(0), _addressI(0),
+      _programCounter(0x200), _startAddress(0x200),
+      randGen(std::chrono::system_clock::now().time_since_epoch().count()) {
     const unsigned int FONTSET_SIZE = 80;
     const unsigned int FONTSET_START_ADDRESS = 0x50;
     randByte = std::uniform_int_distribution<byte>(0, 255U);
@@ -107,10 +24,12 @@ Chip8::Chip8() : randGen(std::chrono::system_clock::now().time_since_epoch().cou
         0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
         0x90, 0x90, 0xF0, 0x10, 0x10, // 4
         0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6 0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+        0xF0, 0x10, 0x20, 0x40, 0x40, // 7
         0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
         0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-        0xF0, 0x90, 0xF0, 0x90, 0x90, // A 0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+        0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
         0xF0, 0x80, 0x80, 0x80, 0xF0, // C
         0xE0, 0x90, 0x90, 0x90, 0xE0, // D
         0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
@@ -118,7 +37,7 @@ Chip8::Chip8() : randGen(std::chrono::system_clock::now().time_since_epoch().cou
     };
 
     for (int i = 0; i < FONTSET_SIZE; i++) {
-        _memory[FONTSET_START_ADDRESS + 1] = fontset[i];
+        _memory[FONTSET_START_ADDRESS + i] = fontset[i];
     }
     // Only store the address pointer to function
     table[0x0] = &Chip8::Table0;
@@ -207,7 +126,7 @@ void Chip8::LoadRom(char const *filename) {
         file.read(buffer, size);
         file.close();
         for (int i = 0; i < size; i++) {
-            _memory[_startAddress + 1] = buffer[i];
+            _memory[_startAddress + i] = buffer[i];
         }
 
         delete[] buffer;
@@ -281,8 +200,8 @@ void Chip8::OP_6xnn() {
 // vx +=nn
 void Chip8::OP_7xnn() {
     byte Vx = (opcode & 0x0F00u) >> 8u;
-    byte byte = (opcode & 0x00FFu);
-    _registers[Vx] += byte;
+    byte val = (opcode & 0x00FFu);
+    _registers[Vx] += val;
 }
 
 // Assign Vy to Vx : 8xy0
@@ -428,7 +347,8 @@ void Chip8::OP_Dxyn() {
             // calc screen pixel
             uint32_t *screenPixel = &screenData[currentY * VIDEO_WIDTH + curretnX];
             if (spritePixel) {
-                if (*screenPixel == 0xFFFFFFFF) { // collision detect _registers[0xF] = 1;
+                if (*screenPixel == 0xFFFFFFFF) { // collision detect
+                    _registers[0xF] = 1;
                 }
                 // xor if on ?? off : on;
                 *screenPixel ^= 0xFFFFFFFF;
@@ -441,7 +361,7 @@ void Chip8::OP_Dxyn() {
 void Chip8::OP_Ex9E() {
     byte Vx = (opcode & 0x0F00u) >> 8u;
     byte key = _registers[Vx];
-    if (key < 0xF && keypad[key]) {
+    if (key < 16 && keypad[key]) {
         _programCounter += 2;
     }
 };
@@ -451,7 +371,7 @@ void Chip8::OP_ExA1() {
     byte Vx = (opcode & 0x0F00u) >> 8u;
     byte key = _registers[Vx];
 
-    if (key < 0xF && !keypad[key]) {
+    if (key < 16 && !keypad[key]) {
         _programCounter += 2;
     }
 }
@@ -527,3 +447,11 @@ void Chip8::OP_Fx65() {
         _registers[i] = _memory[_addressI + i];
     }
 };
+
+// Table Map Implementation
+
+void Chip8::Table0() { ((*this).*(table0[opcode & 0x000Fu]))(); }
+void Chip8::Table8() { ((*this).*(table8[opcode & 0x000Fu]))(); }
+void Chip8::TableE() { ((*this).*(tableE[opcode & 0x000Fu]))(); }
+void Chip8::TableF() { ((*this).*(tableF[opcode & 0x00FFu]))(); } // take the least last two hex
+void Chip8::OP_NULL() {};
