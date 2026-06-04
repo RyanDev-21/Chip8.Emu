@@ -10,8 +10,7 @@
 // I have to mimic that using the c++ standard library and used it as
 // Initialize list when the function start
 Chip8::Chip8()
-    : delayTimer(0), soundTimer(0), _stackPointer(0), opcode(0), _addressI(0),
-      _programCounter(0x200), _startAddress(0x200),
+    : _stackPointer(0), opcode(0), _addressI(0), _programCounter(0x200), _startAddress(0x200),
       randGen(std::chrono::system_clock::now().time_since_epoch().count()) {
     const unsigned int FONTSET_SIZE = 80;
     const unsigned int FONTSET_START_ADDRESS = 0x50;
@@ -107,13 +106,6 @@ void Chip8::Cycle() {
     // e.g: 1010 0000 0000 0000 = 0xA000;
     //      0000 0000 0000 0000 = 0x000A;
     ((*this).*(table[(opcode & 0xF000u) >> 12u]))();
-
-    if (delayTimer > 0) {
-        --delayTimer;
-    }
-    if (soundTimer > 0) {
-        --soundTimer;
-    }
 };
 
 // this load the rom file at the predefined legal address range

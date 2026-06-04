@@ -19,10 +19,7 @@ class Chip8 {
   private:
     byte _registers[16]{};
     byte _memory[4096]{};
-    byte _stack[16]{};
-
-    byte delayTimer;
-    byte soundTimer;
+    word _stack[16]{};
     byte _stackPointer;
     word opcode;
     word _addressI;
@@ -52,6 +49,8 @@ class Chip8 {
   public:
     uint32_t screenData[32 * 64]{}; // Make this  a 32bit for sdl
     byte keypad[16]{};
+    byte delayTimer{};
+    byte soundTimer{};
 
     Chip8();
     void Cycle();
